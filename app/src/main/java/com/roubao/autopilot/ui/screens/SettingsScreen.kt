@@ -725,6 +725,9 @@ fun ModelSelectDialogWithFetch(
     var searchQuery by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
 
+    // 默认推荐模型
+    val defaultModel = "qwen3-vl-plus"
+
     // 过滤后的模型列表
     val filteredModels = remember(cachedModels, searchQuery) {
         if (searchQuery.isBlank()) {
@@ -744,6 +747,60 @@ fun ModelSelectDialogWithFetch(
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState())
             ) {
+                // 默认推荐模型
+                Text(
+                    text = "推荐模型",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = colors.textHint,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+
+                val isDefaultSelected = currentModel == defaultModel
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onSelect(defaultModel) },
+                    shape = RoundedCornerShape(10.dp),
+                    color = if (isDefaultSelected) colors.primary.copy(alpha = 0.15f) else colors.backgroundInput
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (isDefaultSelected) {
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                tint = colors.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .size(20.dp)
+                                    .border(2.dp, colors.textHint, CircleShape)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = defaultModel,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = if (isDefaultSelected) colors.primary else colors.textPrimary
+                            )
+                            Text(
+                                text = "阿里云通义千问视觉模型",
+                                fontSize = 11.sp,
+                                color = colors.textHint
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
                 // 自定义模型输入
                 Text(
                     text = "自定义模型",
@@ -809,63 +866,72 @@ fun ModelSelectDialogWithFetch(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // 从 API 获取按钮
+                // 从 API 获取模型 - 更明显的按钮
                 if (onFetchModels != null) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "可用模型${if (cachedModels.isNotEmpty()) " (${cachedModels.size})" else ""}",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = colors.textHint
-                        )
-
-                        TextButton(
-                            onClick = {
-                                if (!hasApiKey) {
-                                    android.widget.Toast.makeText(context, "请先设置 API Key", android.widget.Toast.LENGTH_SHORT).show()
-                                    return@TextButton
-                                }
-                                isLoading = true
-                                onFetchModels(
-                                    { models ->
-                                        isLoading = false
-                                        onUpdateCachedModels(models)
-                                        android.widget.Toast.makeText(context, "获取到 ${models.size} 个模型", android.widget.Toast.LENGTH_SHORT).show()
-                                    },
-                                    { error ->
-                                        isLoading = false
-                                        android.widget.Toast.makeText(context, "获取失败: $error", android.widget.Toast.LENGTH_SHORT).show()
-                                    }
-                                )
-                            },
-                            enabled = !isLoading
-                        ) {
-                            if (isLoading) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(16.dp),
-                                    strokeWidth = 2.dp,
-                                    color = colors.primary
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("获取中...", fontSize = 13.sp, color = colors.textHint)
-                            } else {
-                                Icon(
-                                    imageVector = Icons.Default.Add,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp),
-                                    tint = colors.primary
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("从 API 获取", fontSize = 13.sp, color = colors.primary)
+                    Button(
+                        onClick = {
+                            if (!hasApiKey) {
+                                android.widget.Toast.makeText(context, "请先设置 API Key", android.widget.Toast.LENGTH_SHORT).show()
+                                return@Button
                             }
+                            isLoading = true
+                            onFetchModels(
+                                { models ->
+                                    isLoading = false
+                                    onUpdateCachedModels(models)
+                                    android.widget.Toast.makeText(context, "获取到 ${models.size} 个模型", android.widget.Toast.LENGTH_SHORT).show()
+                                },
+                                { error ->
+                                    isLoading = false
+                                    android.widget.Toast.makeText(context, "获取失败: $error", android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                            )
+                        },
+                        enabled = !isLoading && hasApiKey,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = colors.primary,
+                            disabledContainerColor = colors.backgroundInput
+                        )
+                    ) {
+                        if (isLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp,
+                                color = Color.White
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("获取中...", fontSize = 14.sp, color = Color.White)
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = if (hasApiKey) Color.White else colors.textHint
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                "从 API 获取可用模型",
+                                fontSize = 14.sp,
+                                color = if (hasApiKey) Color.White else colors.textHint
+                            )
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    if (cachedModels.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Text(
+                            text = "API 模型列表 (${cachedModels.size})",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = colors.textHint,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
 
                     // 搜索框（模型数量超过 10 个时显示）
                     if (cachedModels.size > 10) {

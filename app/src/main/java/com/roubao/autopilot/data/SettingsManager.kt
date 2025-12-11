@@ -22,7 +22,7 @@ data class ApiProvider(
             id = "aliyun",
             name = "阿里云 (Qwen-VL)",
             baseUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1",
-            defaultModel = "qwen-vl-max"
+            defaultModel = "qwen3-vl-plus"
         )
         val OPENAI = ApiProvider(
             id = "openai",
@@ -50,10 +50,15 @@ data class ApiProvider(
 /**
  * 应用设置
  */
+/**
+ * 默认推荐模型
+ */
+const val DEFAULT_MODEL = "qwen3-vl-plus"
+
 data class AppSettings(
     val apiKey: String = "",
     val baseUrl: String = ApiProvider.ALIYUN.baseUrl,
-    val model: String = ApiProvider.ALIYUN.defaultModel,
+    val model: String = DEFAULT_MODEL,
     val cachedModels: List<String> = emptyList(), // 从 API 获取的模型列表缓存
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val hasSeenOnboarding: Boolean = false,
