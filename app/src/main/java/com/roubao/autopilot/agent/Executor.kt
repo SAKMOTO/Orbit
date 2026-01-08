@@ -116,8 +116,17 @@ Text Related:
 
     /**
      * 解析执行响应
+     * 支持两种格式:
+     * 1. 标准格式 (### Thought / ### Action / ### Description)
+     * 2. MAI-UI 格式 (<thinking>...</thinking><tool_call>...</tool_call>)
      */
     fun parseResponse(response: String): ExecutorResult {
+        // 检测是否为 MAI-UI 格式
+        if (response.contains("<tool_call>") || response.contains("<thinking>")) {
+            return parseMAIUIResponse(response)
+        }
+
+        // 标准格式解析
         val thought = response
             .substringAfter("### Thought", "")
             .substringBefore("### Action")
@@ -139,6 +148,40 @@ Text Related:
 
         val action = Action.fromJson(actionStr)
 
+        return ExecutorResult(thought, action, actionStr, description)
+    }
+
+    /**
+     * 解析 MAI-UI 格式响应
+     * 格式: <thinking>...</thinking><tool_call>{"name": "mobile_use", "arguments": {...}}</tool_call>
+     */
+    private fun parseMAIUIResponse(response: String): ExecutorResult {
+        val thought = Action.extractThinking(response)
+        val action = Action.fromMAIUIFormat(response)
+
+        // 从 action 生成描述
+        val description = when (action?.type) {
+            "click" -> "点击坐标 (${action.x}, ${action.y})"
+            "long_press" -> "长按坐标 (${action.x}, ${action.y})"
+            "double_tap" -> "双击坐标 (${action.x}, ${action.y})"
+            "swipe" -> {
+                if (action.direction != null) {
+                    "向${action.direction}滑动"
+                } else {
+                    "从 (${action.x}, ${action.y}) 滑动到 (${action.x2}, ${action.y2})"
+                }
+            }
+            "type" -> "输入文字: ${action.text}"
+            "open_app" -> "打开应用: ${action.text}"
+            "system_button" -> "按${action.button}键"
+            "wait" -> "等待"
+            "terminate" -> "任务${if (action.status == "success") "完成" else "失败"}"
+            "answer" -> "回答: ${action.text?.take(30)}"
+            "take_over" -> "请求用户: ${action.text}"
+            else -> action?.type ?: "未知动作"
+        }
+
+        val actionStr = action?.toJson() ?: ""
         return ExecutorResult(thought, action, actionStr, description)
     }
 }

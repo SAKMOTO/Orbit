@@ -10,6 +10,7 @@ import android.graphics.BitmapFactory
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import com.roubao.autopilot.App
 import com.roubao.autopilot.IShellService
 import com.roubao.autopilot.service.ShellService
 import kotlinx.coroutines.Dispatchers
@@ -474,7 +475,7 @@ class DeviceController(private val context: Context? = null) {
     /**
      * 打开 App - 支持包名或应用名
      */
-    fun openApp(packageName: String) {
+    fun openApp(appNameOrPackage: String) {
         // 常见应用名到包名的映射 (作为备选)
         val packageMap = mapOf(
             "settings" to "com.android.settings",
@@ -501,18 +502,32 @@ class DeviceController(private val context: Context? = null) {
             "文件" to "com.android.documentsui"
         )
 
-        val lowerName = packageName.lowercase().trim()
-        val finalPackage = if (packageName.contains(".")) {
+        val lowerName = appNameOrPackage.lowercase().trim()
+        val finalPackage: String
+
+        if (appNameOrPackage.contains(".")) {
             // 已经是包名格式
-            packageName
+            finalPackage = appNameOrPackage
+        } else if (packageMap.containsKey(lowerName)) {
+            // 从内置映射中查找
+            finalPackage = packageMap[lowerName]!!
         } else {
-            // 尝试从映射中查找
-            packageMap[lowerName] ?: packageName
+            // 使用 AppScanner 搜索应用
+            val appScanner = App.getInstance().appScanner
+            val searchResults = appScanner.searchApps(appNameOrPackage, topK = 1)
+            if (searchResults.isNotEmpty()) {
+                finalPackage = searchResults[0].app.packageName
+                println("[DeviceController] AppScanner found: ${searchResults[0].app.appName} -> $finalPackage")
+            } else {
+                // 找不到，直接用原始输入尝试
+                finalPackage = appNameOrPackage
+                println("[DeviceController] App not found in AppScanner: $appNameOrPackage")
+            }
         }
 
         // 使用 monkey 命令启动应用 (最可靠)
         val result = exec("monkey -p $finalPackage -c android.intent.category.LAUNCHER 1 2>/dev/null")
-        println("[DeviceController] openApp: $packageName -> $finalPackage, result: $result")
+        println("[DeviceController] openApp: $appNameOrPackage -> $finalPackage, result: $result")
     }
 
     /**

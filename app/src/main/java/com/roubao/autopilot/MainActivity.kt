@@ -34,6 +34,8 @@ import com.roubao.autopilot.ui.screens.*
 import com.roubao.autopilot.ui.theme.*
 import androidx.compose.ui.graphics.toArgb
 import androidx.core.view.WindowCompat
+import com.roubao.autopilot.vlm.GUIOwlClient
+import com.roubao.autopilot.vlm.MAIUIClient
 import com.roubao.autopilot.vlm.VLMClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -269,7 +271,15 @@ class MainActivity : ComponentActivity() {
                                     agentState = agentState,
                                     logs = logs,
                                     onExecute = { instruction ->
-                                        runAgent(instruction, settings.apiKey, settings.baseUrl, settings.model, settings.maxSteps)
+                                        runAgent(
+                                            instruction = instruction,
+                                            apiKey = settings.apiKey,
+                                            baseUrl = settings.baseUrl,
+                                            model = settings.model,
+                                            maxSteps = settings.maxSteps,
+                                            isGUIAgent = settings.currentProvider.isGUIAgent,
+                                            providerId = settings.currentProviderId
+                                        )
                                     },
                                     onStop = {
                                         mobileAgent.value?.stop()
@@ -426,12 +436,22 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun runAgent(instruction: String, apiKey: String, baseUrl: String, model: String, maxSteps: Int) {
+    private fun runAgent(
+        instruction: String,
+        apiKey: String,
+        baseUrl: String,
+        model: String,
+        maxSteps: Int,
+        isGUIAgent: Boolean = false,
+        providerId: String = ""
+    ) {
         if (instruction.isBlank()) {
             Toast.makeText(this, "请输入指令", Toast.LENGTH_SHORT).show()
             return
         }
-        if (apiKey.isBlank()) {
+        // MAI-UI 本地部署不需要 API Key
+        val requiresApiKey = providerId != "mai_ui"
+        if (requiresApiKey && apiKey.isBlank()) {
             Toast.makeText(this, "请输入 API Key", Toast.LENGTH_SHORT).show()
             return
         }
@@ -450,13 +470,40 @@ class MainActivity : ComponentActivity() {
         // 立即设置执行状态为 true，显示停止按钮
         isExecuting.value = true
 
-        val vlmClient = VLMClient(
-            apiKey = apiKey,
-            baseUrl = baseUrl.ifBlank { "https://dashscope.aliyuncs.com/compatible-mode/v1" },
-            model = model.ifBlank { "qwen3-vl-plus" }
-        )
-
-        mobileAgent.value = MobileAgent(vlmClient, deviceController, this)
+        // 根据服务商类型创建相应的客户端
+        if (isGUIAgent) {
+            // GUI-Owl 模式
+            val guiOwlClient = GUIOwlClient(
+                apiKey = apiKey,
+                model = model.ifBlank { "pre-gui_owl_7b" }
+            )
+            mobileAgent.value = MobileAgent(
+                vlmClient = null,
+                controller = deviceController,
+                context = this,
+                guiOwlClient = guiOwlClient
+            )
+        } else if (providerId == "mai_ui") {
+            // MAI-UI 模式
+            val maiuiClient = MAIUIClient(
+                baseUrl = baseUrl.ifBlank { "http://localhost:8000/v1" },
+                model = model.ifBlank { "MAI-UI-2B" }
+            )
+            mobileAgent.value = MobileAgent(
+                vlmClient = null,
+                controller = deviceController,
+                context = this,
+                maiuiClient = maiuiClient
+            )
+        } else {
+            // OpenAI 兼容模式 (阿里云 Qwen-VL, OpenAI, OpenRouter 等)
+            val vlmClient = VLMClient(
+                apiKey = apiKey,
+                baseUrl = baseUrl.ifBlank { "https://dashscope.aliyuncs.com/compatible-mode/v1" },
+                model = model.ifBlank { "qwen3-vl-plus" }
+            )
+            mobileAgent.value = MobileAgent(vlmClient, deviceController, this)
+        }
 
         // 设置停止回调，用于取消协程
         mobileAgent.value?.onStopRequested = {

@@ -52,27 +52,60 @@ data class InfoPool(
 
 /**
  * 动作定义
+ * 支持的动作类型:
+ * - click, double_tap, long_press: 点击类操作
+ * - swipe, drag: 滑动类操作
+ * - type: 输入文字
+ * - system_button: 系统按键 (Back, Home, Enter)
+ * - open_app, open: 打开应用
+ * - answer: 回答问题
+ * - wait: 等待
+ * - take_over, ask_user: 人机交互
+ * - terminate: 任务结束
  */
 data class Action(
-    val type: String,           // click, double_tap, swipe, type, system_button, open_app, answer, wait, take_over
+    val type: String,
     val x: Int? = null,
     val y: Int? = null,
     val x2: Int? = null,
     val y2: Int? = null,
     val text: String? = null,
-    val button: String? = null,  // Back, Home, Enter
-    val duration: Int? = null,   // wait 动作的等待时长（秒）
-    val message: String? = null, // take_over 动作的提示消息，或敏感操作确认消息
-    val needConfirm: Boolean = false  // 敏感操作需要用户确认
+    val button: String? = null,      // Back, Home, Enter, menu
+    val duration: Int? = null,       // wait 动作的等待时长（秒）
+    val message: String? = null,     // take_over/ask_user 动作的提示消息
+    val needConfirm: Boolean = false,
+    val direction: String? = null,   // swipe 方向: up, down, left, right
+    val status: String? = null       // terminate 状态: success, fail
 ) {
     companion object {
-        fun fromJson(json: String): Action? {
-            return try {
-                val obj = JSONObject(json.trim()
-                    .replace("```json", "")
-                    .replace("```", "")
-                    .trim())
+        private const val SCALE_FACTOR = 999  // MAI-UI 坐标缩放因子
 
+        /**
+         * 从 JSON 字符串解析 Action
+         * 支持两种格式:
+         * 1. 标准格式: {"action": "click", "coordinate": [x, y]}
+         * 2. MAI-UI 格式: <tool_call>{"name": "mobile_use", "arguments": {...}}</tool_call>
+         */
+        fun fromJson(json: String): Action? {
+            val cleanJson = json.trim()
+                .replace("```json", "")
+                .replace("```", "")
+                .trim()
+
+            // 检查是否是 MAI-UI 的 <tool_call> 格式
+            if (cleanJson.contains("<tool_call>")) {
+                return fromMAIUIFormat(cleanJson)
+            }
+
+            return fromStandardJson(cleanJson)
+        }
+
+        /**
+         * 解析标准 JSON 格式
+         */
+        private fun fromStandardJson(json: String): Action? {
+            return try {
+                val obj = JSONObject(json)
                 val type = obj.optString("action", "")
 
                 Action(
@@ -85,11 +118,82 @@ data class Action(
                     button = obj.optString("button", null),
                     duration = if (obj.has("duration")) obj.optInt("duration", 3) else null,
                     message = obj.optString("message", null),
-                    needConfirm = obj.optBoolean("need_confirm", false)
+                    needConfirm = obj.optBoolean("need_confirm", false),
+                    direction = obj.optString("direction", null),
+                    status = obj.optString("status", null)
                 )
             } catch (e: Exception) {
                 null
             }
+        }
+
+        /**
+         * 解析 MAI-UI 的 <tool_call> 格式
+         * 格式: <tool_call>{"name": "mobile_use", "arguments": {"action": "click", "coordinate": [x, y]}}</tool_call>
+         */
+        fun fromMAIUIFormat(response: String): Action? {
+            return try {
+                // 提取 <tool_call> 内容
+                val toolCallRegex = Regex("<tool_call>\\s*(.+?)\\s*</tool_call>", RegexOption.DOT_MATCHES_ALL)
+                val match = toolCallRegex.find(response) ?: return null
+                val toolCallJson = match.groupValues[1].trim()
+
+                val obj = JSONObject(toolCallJson)
+                val arguments = obj.optJSONObject("arguments") ?: return null
+
+                val type = arguments.optString("action", "")
+
+                // MAI-UI 坐标是 0-999 归一化的，需要标记（在执行时处理）
+                val coordinate = arguments.optJSONArray("coordinate")
+                var x = coordinate?.optInt(0)
+                var y = coordinate?.optInt(1)
+
+                // MAI-UI drag 动作使用 start_coordinate 和 end_coordinate
+                val startCoord = arguments.optJSONArray("start_coordinate")
+                val endCoord = arguments.optJSONArray("end_coordinate")
+                var x2: Int? = null
+                var y2: Int? = null
+
+                if (startCoord != null && endCoord != null) {
+                    x = startCoord.optInt(0)
+                    y = startCoord.optInt(1)
+                    x2 = endCoord.optInt(0)
+                    y2 = endCoord.optInt(1)
+                }
+
+                // 映射 MAI-UI 的动作类型到我们的类型
+                val mappedType = when (type) {
+                    "open" -> "open_app"
+                    "double_click" -> "double_tap"
+                    "drag" -> "swipe"  // drag 和 swipe 在执行层面相同
+                    "ask_user" -> "take_over"
+                    else -> type
+                }
+
+                Action(
+                    type = mappedType,
+                    x = x,
+                    y = y,
+                    x2 = x2,
+                    y2 = y2,
+                    text = arguments.optString("text", null),
+                    button = arguments.optString("button", null),
+                    direction = arguments.optString("direction", null),
+                    status = arguments.optString("status", null)
+                )
+            } catch (e: Exception) {
+                println("[Action] MAI-UI 格式解析失败: ${e.message}")
+                null
+            }
+        }
+
+        /**
+         * 从 MAI-UI 响应中提取思考过程
+         */
+        fun extractThinking(response: String): String {
+            val thinkingRegex = Regex("<thinking>\\s*(.+?)\\s*</thinking>", RegexOption.DOT_MATCHES_ALL)
+            val match = thinkingRegex.find(response)
+            return match?.groupValues?.get(1)?.trim() ?: ""
         }
     }
 

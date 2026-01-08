@@ -72,7 +72,11 @@ class VLMClient(
             val request = try {
                 Request.Builder()
                     .url("$cleanBaseUrl/models")
-                    .addHeader("Authorization", "Bearer $apiKey")
+                    .apply {
+                        if (apiKey.isNotBlank()) {
+                            addHeader("Authorization", "Bearer $apiKey")
+                        }
+                    }
                     .get()
                     .build()
             } catch (e: IllegalArgumentException) {
@@ -154,7 +158,11 @@ class VLMClient(
 
                 val request = Request.Builder()
                     .url("$baseUrl/chat/completions")
-                    .addHeader("Authorization", "Bearer $apiKey")
+                    .apply {
+                        if (apiKey.isNotBlank()) {
+                            addHeader("Authorization", "Bearer $apiKey")
+                        }
+                    }
                     .addHeader("Content-Type", "application/json")
                     .post(requestBody.toString().toRequestBody("application/json".toMediaType()))
                     .build()
@@ -225,7 +233,11 @@ class VLMClient(
 
                 val request = Request.Builder()
                     .url("$baseUrl/chat/completions")
-                    .addHeader("Authorization", "Bearer $apiKey")
+                    .apply {
+                        if (apiKey.isNotBlank()) {
+                            addHeader("Authorization", "Bearer $apiKey")
+                        }
+                    }
                     .addHeader("Content-Type", "application/json")
                     .post(requestBody.toString().toRequestBody("application/json".toMediaType()))
                     .build()

@@ -9,6 +9,8 @@ import com.roubao.autopilot.controller.DeviceController
 import com.roubao.autopilot.data.ExecutionStep
 import com.roubao.autopilot.skills.SkillManager
 import com.roubao.autopilot.ui.OverlayService
+import com.roubao.autopilot.vlm.GUIOwlClient
+import com.roubao.autopilot.vlm.MAIUIClient
 import com.roubao.autopilot.vlm.VLMClient
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -27,12 +29,23 @@ import kotlin.coroutines.resume
  * 新增 Skill 层支持：
  * - 快速路径：高置信度 delegation Skill 直接执行
  * - 增强模式：GUI 自动化 Skill 提供上下文指导
+ *
+ * 支持三种模式：
+ * - OpenAI 兼容模式：使用 VLMClient (Manager → Executor → Reflector)
+ * - GUI-Owl 模式：使用 GUIOwlClient (直接返回操作指令)
+ * - MAI-UI 模式：使用 MAIUIClient (专用 prompt 和对话历史)
  */
 class MobileAgent(
-    private val vlmClient: VLMClient,
+    private val vlmClient: VLMClient?,
     private val controller: DeviceController,
-    private val context: Context
+    private val context: Context,
+    private val guiOwlClient: GUIOwlClient? = null,  // GUI-Owl 专用客户端
+    private val maiuiClient: MAIUIClient? = null     // MAI-UI 专用客户端
 ) {
+    // 是否使用 GUI-Owl 模式
+    private val useGUIOwlMode: Boolean = guiOwlClient != null
+    // 是否使用 MAI-UI 模式
+    private val useMAIUIMode: Boolean = maiuiClient != null
     // App 扫描器 (使用 App 单例中的实例)
     private val appScanner: AppScanner = App.getInstance().appScanner
     private val manager = Manager()
@@ -44,8 +57,8 @@ class MobileAgent(
     private val skillManager: SkillManager? = try {
         SkillManager.getInstance().also {
             println("[肉包] SkillManager 已加载，共 ${it.getAllSkills().size} 个 Skills")
-            // 设置 VLM 客户端用于意图匹配
-            it.setVLMClient(vlmClient)
+            // 设置 VLM 客户端用于意图匹配（仅在 OpenAI 兼容模式下）
+            vlmClient?.let { client -> it.setVLMClient(client) }
         }
     } catch (e: Exception) {
         println("[肉包] SkillManager 加载失败: ${e.message}")
@@ -68,6 +81,25 @@ class MobileAgent(
         useNotetaker: Boolean = false
     ): AgentResult {
         log("开始执行: $instruction")
+
+        // 根据模式选择执行路径
+        if (useGUIOwlMode && guiOwlClient != null) {
+            log("使用 GUI-Owl 模式")
+            return runInstructionWithGUIOwl(instruction, maxSteps)
+        }
+
+        if (useMAIUIMode && maiuiClient != null) {
+            log("使用 MAI-UI 模式")
+            return runInstructionWithMAIUI(instruction, maxSteps)
+        }
+
+        // OpenAI 兼容模式需要 VLMClient
+        if (vlmClient == null) {
+            log("错误: VLMClient 未初始化")
+            return AgentResult(success = false, message = "VLMClient 未初始化")
+        }
+
+        log("使用 OpenAI 兼容模式")
 
         // 使用 LLM 匹配 Skill，生成上下文信息给 Agent（不执行任何操作）
         log("正在分析意图...")
@@ -311,6 +343,18 @@ class MobileAgent(
                     return AgentResult(success = true, message = "回答: ${action.text}")
                 }
 
+                // 特殊处理: terminate 动作 (MAI-UI)
+                if (action.type == "terminate") {
+                    val success = action.status == "success"
+                    log("任务${if (success) "完成" else "失败"}")
+                    OverlayService.update(if (success) "完成!" else "失败")
+                    delay(1500)
+                    OverlayService.hide(context)
+                    updateState { copy(isRunning = false, isCompleted = success) }
+                    bringAppToFront()
+                    return AgentResult(success = success, message = if (success) "任务完成" else "任务失败")
+                }
+
                 // 6. 敏感操作确认
                 if (action.needConfirm || action.message != null && action.type in listOf("click", "double_tap", "long_press")) {
                     val confirmMessage = action.message ?: "确认执行此操作？"
@@ -447,6 +491,469 @@ class MobileAgent(
     }
 
     /**
+     * GUI-Owl 模式执行指令
+     * 简化流程：截图 → GUI-Owl API → 解析操作 → 执行
+     */
+    private suspend fun runInstructionWithGUIOwl(
+        instruction: String,
+        maxSteps: Int
+    ): AgentResult {
+        val client = guiOwlClient ?: return AgentResult(false, "GUIOwlClient 未初始化")
+
+        // 重置会话
+        client.resetSession()
+        log("GUI-Owl 会话已重置")
+
+        // 获取屏幕尺寸
+        val (screenWidth, screenHeight) = controller.getScreenSize()
+        log("屏幕尺寸: ${screenWidth}x${screenHeight}")
+
+        // 显示悬浮窗
+        OverlayService.show(context, "GUI-Owl 模式") {
+            updateState { copy(isRunning = false) }
+            stop()
+        }
+
+        updateState { copy(isRunning = true, currentStep = 0, instruction = instruction) }
+
+        try {
+            for (step in 0 until maxSteps) {
+                coroutineContext.ensureActive()
+
+                if (!_state.value.isRunning) {
+                    log("用户停止执行")
+                    OverlayService.hide(context)
+                    bringAppToFront()
+                    return AgentResult(success = false, message = "用户停止")
+                }
+
+                updateState { copy(currentStep = step + 1) }
+                log("\n========== Step ${step + 1} (GUI-Owl) ==========")
+                OverlayService.update("Step ${step + 1}/$maxSteps")
+
+                // 1. 截图
+                log("截图中...")
+                OverlayService.setVisible(false)
+                delay(100)
+                val screenshotResult = controller.screenshotWithFallback()
+                OverlayService.setVisible(true)
+                val screenshot = screenshotResult.bitmap
+
+                if (screenshotResult.isSensitive) {
+                    log("⚠️ 检测到敏感页面")
+                    OverlayService.hide(context)
+                    bringAppToFront()
+                    return AgentResult(success = false, message = "敏感页面，已停止")
+                }
+
+                // 2. 调用 GUI-Owl API
+                log("调用 GUI-Owl API...")
+                val response = client.predict(instruction, screenshot)
+
+                if (response.isFailure) {
+                    log("GUI-Owl 调用失败: ${response.exceptionOrNull()?.message}")
+                    continue
+                }
+
+                val result = response.getOrThrow()
+                log("思考: ${result.thought.take(100)}...")
+                log("操作: ${result.operation}")
+                log("说明: ${result.explanation}")
+
+                // 3. 解析操作指令
+                val parsedAction = client.parseOperation(result.operation)
+                if (parsedAction == null) {
+                    log("无法解析操作: ${result.operation}")
+                    continue
+                }
+
+                // 记录执行步骤
+                val executionStep = ExecutionStep(
+                    stepNumber = step + 1,
+                    timestamp = System.currentTimeMillis(),
+                    action = parsedAction.type,
+                    description = result.explanation,
+                    thought = result.thought,
+                    outcome = "?"
+                )
+                updateState { copy(executionSteps = executionSteps + executionStep) }
+
+                // 检查是否完成
+                if (parsedAction.type == "finish") {
+                    log("任务完成!")
+                    OverlayService.update("完成!")
+                    delay(1500)
+                    OverlayService.hide(context)
+                    updateState { copy(isRunning = false, isCompleted = true) }
+                    bringAppToFront()
+                    return AgentResult(success = true, message = "任务完成")
+                }
+
+                // 4. 执行动作
+                log("执行动作: ${parsedAction.type}")
+                OverlayService.update("${parsedAction.type}: ${result.explanation.take(15)}...")
+                executeGUIOwlAction(parsedAction, screenWidth, screenHeight)
+
+                // 更新步骤状态
+                updateState {
+                    val updatedSteps = executionSteps.toMutableList()
+                    if (step < updatedSteps.size) {
+                        updatedSteps[step] = updatedSteps[step].copy(outcome = "A")
+                    }
+                    copy(executionSteps = updatedSteps)
+                }
+
+                // 等待动作生效
+                delay(if (step == 0) 3000 else 1500)
+            }
+        } catch (e: CancellationException) {
+            log("任务被取消")
+            OverlayService.hide(context)
+            updateState { copy(isRunning = false) }
+            bringAppToFront()
+            throw e
+        }
+
+        log("达到最大步数限制")
+        OverlayService.update("达到最大步数")
+        delay(1500)
+        OverlayService.hide(context)
+        updateState { copy(isRunning = false, isCompleted = false) }
+        bringAppToFront()
+        return AgentResult(success = false, message = "达到最大步数限制")
+    }
+
+    /**
+     * 执行 GUI-Owl 解析的动作
+     */
+    private suspend fun executeGUIOwlAction(
+        action: GUIOwlClient.ParsedAction,
+        screenWidth: Int,
+        screenHeight: Int
+    ) = withContext(Dispatchers.IO) {
+        when (action.type) {
+            "click" -> {
+                val x = action.x ?: return@withContext
+                val y = action.y ?: return@withContext
+                log("点击: ($x, $y)")
+                controller.tap(x, y)
+            }
+            "swipe" -> {
+                val x1 = action.x ?: return@withContext
+                val y1 = action.y ?: return@withContext
+                val x2 = action.x2 ?: return@withContext
+                val y2 = action.y2 ?: return@withContext
+                log("滑动: ($x1, $y1) -> ($x2, $y2)")
+                controller.swipe(x1, y1, x2, y2)
+            }
+            "long_press" -> {
+                val x = action.x ?: return@withContext
+                val y = action.y ?: return@withContext
+                log("长按: ($x, $y)")
+                controller.longPress(x, y)
+            }
+            "type" -> {
+                val text = action.text ?: return@withContext
+                log("输入: $text")
+                controller.type(text)
+            }
+            "scroll" -> {
+                val direction = action.text ?: "down"
+                val centerX = screenWidth / 2
+                val centerY = screenHeight / 2
+                log("滚动: $direction")
+                when (direction) {
+                    "up" -> controller.swipe(centerX, centerY + 300, centerX, centerY - 300)
+                    "down" -> controller.swipe(centerX, centerY - 300, centerX, centerY + 300)
+                    "left" -> controller.swipe(centerX + 300, centerY, centerX - 300, centerY)
+                    "right" -> controller.swipe(centerX - 300, centerY, centerX + 300, centerY)
+                }
+            }
+            "system_button" -> {
+                when (action.text?.lowercase()) {
+                    "back" -> {
+                        log("按返回键")
+                        controller.back()
+                    }
+                    "home" -> {
+                        log("按 Home 键")
+                        controller.home()
+                    }
+                }
+            }
+            else -> {
+                log("未知动作类型: ${action.type}")
+            }
+        }
+    }
+
+    /**
+     * MAI-UI 模式执行指令
+     * 使用专用的 MAI-UI prompt 和对话历史管理
+     */
+    private suspend fun runInstructionWithMAIUI(
+        instruction: String,
+        maxSteps: Int
+    ): AgentResult {
+        val client = maiuiClient ?: return AgentResult(false, "MAIUIClient 未初始化")
+
+        // 重置会话
+        client.reset()
+        log("MAI-UI 会话已重置")
+
+        // 获取屏幕尺寸
+        val (screenWidth, screenHeight) = controller.getScreenSize()
+        log("屏幕尺寸: ${screenWidth}x${screenHeight}")
+
+        // 设置可用应用列表
+        val installedApps = appScanner.getApps().map { it.appName }
+        client.setAvailableApps(installedApps)
+        log("已加载 ${installedApps.size} 个应用")
+
+        // 显示悬浮窗
+        OverlayService.show(context, "MAI-UI 模式") {
+            updateState { copy(isRunning = false) }
+            stop()
+        }
+
+        updateState { copy(isRunning = true, currentStep = 0, instruction = instruction) }
+
+        try {
+            for (step in 0 until maxSteps) {
+                coroutineContext.ensureActive()
+
+                if (!_state.value.isRunning) {
+                    log("用户停止执行")
+                    OverlayService.hide(context)
+                    bringAppToFront()
+                    return AgentResult(success = false, message = "用户停止")
+                }
+
+                updateState { copy(currentStep = step + 1) }
+                log("\n========== Step ${step + 1} (MAI-UI) ==========")
+                OverlayService.update("Step ${step + 1}/$maxSteps")
+
+                // 1. 截图
+                log("截图中...")
+                OverlayService.setVisible(false)
+                delay(100)
+                val screenshotResult = controller.screenshotWithFallback()
+                OverlayService.setVisible(true)
+                val screenshot = screenshotResult.bitmap
+
+                if (screenshotResult.isSensitive) {
+                    log("⚠️ 检测到敏感页面")
+                    OverlayService.hide(context)
+                    bringAppToFront()
+                    return AgentResult(success = false, message = "敏感页面，已停止")
+                }
+
+                // 2. 调用 MAI-UI API
+                log("调用 MAI-UI API...")
+                val response = client.predict(instruction, screenshot)
+
+                if (response.isFailure) {
+                    log("MAI-UI 调用失败: ${response.exceptionOrNull()?.message}")
+                    continue
+                }
+
+                val result = response.getOrThrow()
+                log("思考: ${result.thinking.take(150)}...")
+
+                val action = result.action
+                if (action == null) {
+                    log("无法解析动作")
+                    continue
+                }
+
+                log("动作: ${action.type}")
+
+                // 记录执行步骤
+                val executionStep = ExecutionStep(
+                    stepNumber = step + 1,
+                    timestamp = System.currentTimeMillis(),
+                    action = action.type,
+                    description = result.thinking.take(50),
+                    thought = result.thinking,
+                    outcome = "?"
+                )
+                updateState { copy(executionSteps = executionSteps + executionStep) }
+
+                // 检查是否完成
+                if (action.type == "terminate") {
+                    val success = action.status == "success"
+                    log(if (success) "任务完成!" else "任务失败")
+                    OverlayService.update(if (success) "完成!" else "失败")
+                    delay(1500)
+                    OverlayService.hide(context)
+                    updateState { copy(isRunning = false, isCompleted = success) }
+                    bringAppToFront()
+                    return AgentResult(success = success, message = if (success) "任务完成" else "任务失败")
+                }
+
+                // 检查是否需要人工接管
+                if (action.type == "ask_user") {
+                    log("请求用户介入: ${action.text}")
+                    OverlayService.update("请手动操作: ${action.text?.take(20)}")
+                    // 等待用户操作后继续
+                    delay(5000)
+                    continue
+                }
+
+                // 检查是否是回答
+                if (action.type == "answer") {
+                    log("回答: ${action.text}")
+                    OverlayService.update("答案: ${action.text?.take(30)}")
+                    delay(3000)
+                    OverlayService.hide(context)
+                    updateState { copy(isRunning = false, isCompleted = true) }
+                    bringAppToFront()
+                    return AgentResult(success = true, message = "回答: ${action.text}")
+                }
+
+                // 3. 执行动作
+                log("执行动作: ${action.type}")
+                OverlayService.update("${action.type}...")
+                executeMAIUIAction(action, screenWidth, screenHeight)
+
+                // 更新步骤状态
+                updateState {
+                    val updatedSteps = executionSteps.toMutableList()
+                    if (step < updatedSteps.size) {
+                        updatedSteps[step] = updatedSteps[step].copy(outcome = "A")
+                    }
+                    copy(executionSteps = updatedSteps)
+                }
+
+                // 等待动作生效
+                delay(if (step == 0) 2000 else 1000)
+            }
+        } catch (e: CancellationException) {
+            log("任务被取消")
+            OverlayService.hide(context)
+            updateState { copy(isRunning = false) }
+            bringAppToFront()
+            throw e
+        }
+
+        log("达到最大步数限制")
+        OverlayService.update("达到最大步数")
+        delay(1500)
+        OverlayService.hide(context)
+        updateState { copy(isRunning = false, isCompleted = false) }
+        bringAppToFront()
+        return AgentResult(success = false, message = "达到最大步数限制")
+    }
+
+    /**
+     * 执行 MAI-UI 解析的动作
+     */
+    private suspend fun executeMAIUIAction(
+        action: com.roubao.autopilot.vlm.MAIUIAction,
+        screenWidth: Int,
+        screenHeight: Int
+    ) = withContext(Dispatchers.IO) {
+        // 转换归一化坐标到屏幕像素
+        val screenAction = action.toScreenCoordinates(screenWidth, screenHeight)
+
+        when (action.type) {
+            "click" -> {
+                val x = screenAction.x?.toInt() ?: return@withContext
+                val y = screenAction.y?.toInt() ?: return@withContext
+                log("点击: ($x, $y)")
+                controller.tap(x, y)
+            }
+            "long_press" -> {
+                val x = screenAction.x?.toInt() ?: return@withContext
+                val y = screenAction.y?.toInt() ?: return@withContext
+                log("长按: ($x, $y)")
+                controller.longPress(x, y)
+            }
+            "double_click" -> {
+                val x = screenAction.x?.toInt() ?: return@withContext
+                val y = screenAction.y?.toInt() ?: return@withContext
+                log("双击: ($x, $y)")
+                controller.tap(x, y)
+                delay(100)
+                controller.tap(x, y)
+            }
+            "type" -> {
+                val text = action.text ?: return@withContext
+                log("输入: $text")
+                controller.type(text)
+            }
+            "swipe" -> {
+                // 支持方向式滑动和坐标式滑动
+                if (action.direction != null) {
+                    val centerX = screenWidth / 2
+                    val centerY = screenHeight / 2
+                    val distance = screenHeight / 3
+                    log("滑动: ${action.direction}")
+                    when (action.direction.lowercase()) {
+                        "up" -> controller.swipe(centerX, centerY + distance, centerX, centerY - distance)
+                        "down" -> controller.swipe(centerX, centerY - distance, centerX, centerY + distance)
+                        "left" -> controller.swipe(centerX + distance, centerY, centerX - distance, centerY)
+                        "right" -> controller.swipe(centerX - distance, centerY, centerX + distance, centerY)
+                    }
+                } else if (screenAction.x != null && screenAction.y != null) {
+                    // 从指定位置滑动
+                    val startX = screenAction.x.toInt()
+                    val startY = screenAction.y.toInt()
+                    val distance = screenHeight / 3
+                    val direction = action.direction ?: "up"
+                    when (direction.lowercase()) {
+                        "up" -> controller.swipe(startX, startY, startX, startY - distance)
+                        "down" -> controller.swipe(startX, startY, startX, startY + distance)
+                        "left" -> controller.swipe(startX, startY, startX - distance, startY)
+                        "right" -> controller.swipe(startX, startY, startX + distance, startY)
+                    }
+                }
+            }
+            "drag" -> {
+                val x1 = screenAction.startX?.toInt() ?: return@withContext
+                val y1 = screenAction.startY?.toInt() ?: return@withContext
+                val x2 = screenAction.endX?.toInt() ?: return@withContext
+                val y2 = screenAction.endY?.toInt() ?: return@withContext
+                log("拖拽: ($x1, $y1) -> ($x2, $y2)")
+                controller.swipe(x1, y1, x2, y2, 500)
+            }
+            "open" -> {
+                val appName = action.text ?: return@withContext
+                log("打开应用: $appName")
+                controller.openApp(appName)
+            }
+            "system_button" -> {
+                when (action.button?.lowercase()) {
+                    "back" -> {
+                        log("按返回键")
+                        controller.back()
+                    }
+                    "home" -> {
+                        log("按 Home 键")
+                        controller.home()
+                    }
+                    "menu" -> {
+                        log("按菜单键")
+                        // 通过 keyevent 模拟菜单键
+                        controller.back()  // 大多数场景用返回代替
+                    }
+                    "enter" -> {
+                        log("按回车键")
+                        controller.enter()
+                    }
+                }
+            }
+            "wait" -> {
+                log("等待...")
+                delay(2000)
+            }
+            else -> {
+                log("未知动作类型: ${action.type}")
+            }
+        }
+    }
+
+    /**
      * 执行具体动作 (在 IO 线程执行，避免 ANR)
      */
     private suspend fun executeAction(action: Action, infoPool: InfoPool) = withContext(Dispatchers.IO) {
@@ -470,11 +977,29 @@ class MobileAgent(
                 controller.longPress(x, y)
             }
             "swipe" -> {
-                val x1 = mapCoordinate(action.x ?: 0, screenWidth)
-                val y1 = mapCoordinate(action.y ?: 0, screenHeight)
-                val x2 = mapCoordinate(action.x2 ?: 0, screenWidth)
-                val y2 = mapCoordinate(action.y2 ?: 0, screenHeight)
-                controller.swipe(x1, y1, x2, y2)
+                // 支持两种 swipe 方式:
+                // 1. 坐标方式: coordinate + coordinate2
+                // 2. 方向方式: direction (up/down/left/right) + optional coordinate
+                if (action.direction != null) {
+                    // 方向方式 (MAI-UI 格式)
+                    val centerX = action.x?.let { mapCoordinate(it, screenWidth) } ?: (screenWidth / 2)
+                    val centerY = action.y?.let { mapCoordinate(it, screenHeight) } ?: (screenHeight / 2)
+                    val distance = 400  // 滑动距离
+                    when (action.direction.lowercase()) {
+                        "up" -> controller.swipe(centerX, centerY + distance, centerX, centerY - distance)
+                        "down" -> controller.swipe(centerX, centerY - distance, centerX, centerY + distance)
+                        "left" -> controller.swipe(centerX + distance, centerY, centerX - distance, centerY)
+                        "right" -> controller.swipe(centerX - distance, centerY, centerX + distance, centerY)
+                        else -> log("未知滑动方向: ${action.direction}")
+                    }
+                } else {
+                    // 坐标方式
+                    val x1 = mapCoordinate(action.x ?: 0, screenWidth)
+                    val y1 = mapCoordinate(action.y ?: 0, screenHeight)
+                    val x2 = mapCoordinate(action.x2 ?: 0, screenWidth)
+                    val y2 = mapCoordinate(action.y2 ?: 0, screenHeight)
+                    controller.swipe(x1, y1, x2, y2)
+                }
             }
             "type" -> {
                 action.text?.let { controller.type(it) }

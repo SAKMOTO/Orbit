@@ -1680,8 +1680,8 @@ fun ProviderSelectDialog(
                         }
                     }
 
-                    // 自定义服务商选中时显示 URL 输入框
-                    if (provider.id == "custom" && isSelected) {
+                    // 自定义服务商或 MAI-UI 选中时显示 URL 输入框
+                    if ((provider.id == "custom" || provider.id == "mai_ui") && isSelected) {
                         Spacer(modifier = Modifier.height(8.dp))
                         Box(
                             modifier = Modifier
@@ -1693,7 +1693,7 @@ fun ProviderSelectDialog(
                         ) {
                             if (customUrl.isEmpty()) {
                                 Text(
-                                    text = "https://api.example.com/v1",
+                                    text = if (provider.id == "mai_ui") "http://your-server:8000/v1" else "https://api.example.com/v1",
                                     color = colors.textHint,
                                     fontSize = 14.sp
                                 )
@@ -1714,7 +1714,7 @@ fun ProviderSelectDialog(
                             )
                         }
                         Text(
-                            text = "输入自定义 API 端点地址",
+                            text = if (provider.id == "mai_ui") "留空使用默认地址 (localhost:8000)" else "输入自定义 API 端点地址",
                             fontSize = 11.sp,
                             color = colors.textHint,
                             modifier = Modifier.padding(start = 28.dp, top = 4.dp)

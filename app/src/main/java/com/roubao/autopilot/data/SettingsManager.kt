@@ -15,9 +15,23 @@ data class ApiProvider(
     val id: String,
     val name: String,
     val baseUrl: String,
-    val defaultModel: String
+    val defaultModel: String,
+    val isGUIAgent: Boolean = false  // 是否为 GUI Agent 专用协议（非 OpenAI 兼容）
 ) {
     companion object {
+        val GUI_OWL = ApiProvider(
+            id = "gui_owl",
+            name = "GUI-Owl (阿里云)",
+            baseUrl = "https://dashscope.aliyuncs.com/api/v2/apps/gui-owl/gui_agent_server",
+            defaultModel = "pre-gui_owl_7b",
+            isGUIAgent = true
+        )
+        val MAI_UI = ApiProvider(
+            id = "mai_ui",
+            name = "MAI-UI (本地部署)",
+            baseUrl = "http://localhost:8000/v1",  // vLLM 默认地址
+            defaultModel = "MAI-UI-2B"  // 支持 MAI-UI-2B 或 MAI-UI-8B
+        )
         val ALIYUN = ApiProvider(
             id = "aliyun",
             name = "阿里云 (Qwen-VL)",
@@ -43,7 +57,7 @@ data class ApiProvider(
             defaultModel = ""
         )
 
-        val ALL = listOf(ALIYUN, OPENAI, OPENROUTER, CUSTOM)
+        val ALL = listOf(GUI_OWL, MAI_UI, ALIYUN, OPENAI, OPENROUTER, CUSTOM)
     }
 }
 
@@ -87,10 +101,11 @@ data class AppSettings(
     val cachedModels: List<String> get() = currentConfig.cachedModels
 
     val baseUrl: String
-        get() = if (currentProviderId == "custom") {
-            currentConfig.customBaseUrl
-        } else {
-            currentProvider.baseUrl
+        get() = when {
+            currentProviderId == "custom" -> currentConfig.customBaseUrl
+            // MAI-UI 支持自定义 URL（用于远程部署）
+            currentProviderId == "mai_ui" && currentConfig.customBaseUrl.isNotEmpty() -> currentConfig.customBaseUrl
+            else -> currentProvider.baseUrl
         }
 }
 
@@ -259,8 +274,9 @@ class SettingsManager(context: Context) {
     }
 
     fun updateBaseUrl(baseUrl: String) {
-        // 只有自定义服务商才能修改 URL
-        if (_settings.value.currentProviderId == "custom") {
+        // 自定义服务商和 MAI-UI 可以修改 URL
+        val providerId = _settings.value.currentProviderId
+        if (providerId == "custom" || providerId == "mai_ui") {
             updateCurrentConfig { it.copy(customBaseUrl = baseUrl) }
         }
     }
