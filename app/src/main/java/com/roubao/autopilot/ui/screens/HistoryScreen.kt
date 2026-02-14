@@ -28,7 +28,7 @@ import androidx.compose.ui.unit.sp
 import com.roubao.autopilot.data.ExecutionRecord
 import com.roubao.autopilot.data.ExecutionStatus
 import com.roubao.autopilot.data.ExecutionStep
-import com.roubao.autopilot.ui.theme.BaoziTheme
+import com.roubao.autopilot.ui.theme.OrbitTheme
 import com.roubao.autopilot.ui.theme.Primary
 import com.roubao.autopilot.ui.theme.Secondary
 
@@ -38,7 +38,7 @@ fun HistoryScreen(
     onRecordClick: (ExecutionRecord) -> Unit,
     onDeleteRecord: (String) -> Unit
 ) {
-    val colors = BaoziTheme.colors
+    val colors = OrbitTheme.colors
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -52,13 +52,13 @@ fun HistoryScreen(
         ) {
             Column {
                 Text(
-                    text = "执行记录",
+                    text = stringResource(R.string.history_title),
                     fontSize = 28.sp,
                     fontWeight = FontWeight.Bold,
                     color = colors.primary
                 )
                 Text(
-                    text = "共 ${records.size} 条记录",
+                    text = stringResource(R.string.history_count, records.size),
                     fontSize = 14.sp,
                     color = colors.textSecondary
                 )
@@ -80,12 +80,12 @@ fun HistoryScreen(
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "暂无执行记录",
+                        text = stringResource(R.string.history_empty),
                         fontSize = 16.sp,
                         color = colors.textSecondary
                     )
                     Text(
-                        text = "执行任务后记录会显示在这里",
+                        text = stringResource(R.string.history_empty_hint),
                         fontSize = 14.sp,
                         color = colors.textHint
                     )
@@ -120,26 +120,26 @@ fun HistoryRecordCard(
     onClick: () -> Unit,
     onDelete: () -> Unit
 ) {
-    val colors = BaoziTheme.colors
+    val colors = OrbitTheme.colors
     var showDeleteDialog by remember { mutableStateOf(false) }
 
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
             containerColor = colors.backgroundCard,
-            title = { Text("删除记录", color = colors.textPrimary) },
-            text = { Text("确定要删除这条执行记录吗？", color = colors.textSecondary) },
+            title = { Text(stringResource(R.string.history_delete_title), color = colors.textPrimary) },
+            text = { Text(stringResource(R.string.history_delete_confirm), color = colors.textSecondary) },
             confirmButton = {
                 TextButton(onClick = {
                     onDelete()
                     showDeleteDialog = false
                 }) {
-                    Text("删除", color = colors.error)
+                    Text(stringResource(R.string.btn_delete), color = colors.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("取消", color = colors.textSecondary)
+                    Text(stringResource(R.string.btn_cancel), color = colors.textSecondary)
                 }
             }
         )
@@ -219,10 +219,10 @@ fun HistoryRecordCard(
                 ) {
                     // 状态标签
                     val (statusText, statusColor) = when (record.status) {
-                        ExecutionStatus.COMPLETED -> "已完成" to colors.success
-                        ExecutionStatus.FAILED -> "失败" to colors.error
-                        ExecutionStatus.STOPPED -> "已取消" to colors.warning
-                        ExecutionStatus.RUNNING -> "执行中" to colors.primary
+                        ExecutionStatus.COMPLETED -> stringResource(R.string.status_completed) to colors.success
+                        ExecutionStatus.FAILED -> stringResource(R.string.status_failed) to colors.error
+                        ExecutionStatus.STOPPED -> stringResource(R.string.status_stopped) to colors.warning
+                        ExecutionStatus.RUNNING -> stringResource(R.string.status_running) to colors.primary
                     }
                     Text(
                         text = statusText,
@@ -253,7 +253,7 @@ fun HistoryRecordCard(
                         color = colors.textHint
                     )
                     Text(
-                        text = "${record.steps.size}步",
+                        text = stringResource(R.string.history_steps, record.steps.size),
                         fontSize = 12.sp,
                         color = colors.textHint,
                         maxLines = 1
@@ -278,7 +278,7 @@ fun HistoryRecordCard(
             ) {
                 Icon(
                     imageVector = Icons.Default.Delete,
-                    contentDescription = "删除",
+                    contentDescription = stringResource(R.string.btn_delete),
                     tint = colors.textHint
                 )
             }
@@ -292,7 +292,7 @@ fun HistoryDetailScreen(
     record: ExecutionRecord,
     onBack: () -> Unit
 ) {
-    val colors = BaoziTheme.colors
+    val colors = OrbitTheme.colors
     // Tab 状态：0 = 时间线，1 = 日志
     var selectedTab by remember { mutableStateOf(0) }
 
@@ -322,7 +322,7 @@ fun HistoryDetailScreen(
                 IconButton(onClick = onBack) {
                     Icon(
                         imageVector = Icons.Default.ArrowBack,
-                        contentDescription = "返回",
+                        contentDescription = stringResource(R.string.btn_back),
                         tint = colors.textPrimary
                     )
                 }
@@ -342,7 +342,7 @@ fun HistoryDetailScreen(
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
-                    text = "任务指令",
+                    text = stringResource(R.string.history_instruction),
                     fontSize = 12.sp,
                     color = colors.textHint
                 )
@@ -358,13 +358,13 @@ fun HistoryDetailScreen(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Column {
-                        Text("状态", fontSize = 12.sp, color = colors.textHint)
+                        Text(stringResource(R.string.status_label), fontSize = 12.sp, color = colors.textHint)
                         Text(
                             text = when (record.status) {
-                                ExecutionStatus.COMPLETED -> "已完成"
-                                ExecutionStatus.FAILED -> "失败"
-                                ExecutionStatus.STOPPED -> "已停止"
-                                ExecutionStatus.RUNNING -> "执行中"
+                                ExecutionStatus.COMPLETED -> stringResource(R.string.status_completed)
+                                ExecutionStatus.FAILED -> stringResource(R.string.status_failed)
+                                ExecutionStatus.STOPPED -> stringResource(R.string.status_stopped)
+                                ExecutionStatus.RUNNING -> stringResource(R.string.status_running)
                             },
                             fontSize = 14.sp,
                             color = when (record.status) {
@@ -376,12 +376,13 @@ fun HistoryDetailScreen(
                         )
                     }
                     Column {
-                        Text("步骤数", fontSize = 12.sp, color = colors.textHint)
+                        Text(stringResource(R.string.steps_label), fontSize = 12.sp, color = colors.textHint)
                         Text("${record.steps.size}", fontSize = 14.sp, color = colors.textPrimary)
                     }
                     Column {
-                        Text("耗时", fontSize = 12.sp, color = colors.textHint)
-                        Text(record.formattedDuration, fontSize = 14.sp, color = colors.textPrimary)
+                        val context = LocalContext.current
+                        Text(stringResource(R.string.duration_label), fontSize = 12.sp, color = colors.textHint)
+                        Text(record.formattedDuration(context), fontSize = 14.sp, color = colors.textPrimary)
                     }
                 }
             }
@@ -408,7 +409,7 @@ fun HistoryDetailScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "执行时间线",
+                    text = stringResource(R.string.history_timeline),
                     fontSize = 14.sp,
                     fontWeight = if (selectedTab == 0) FontWeight.Medium else FontWeight.Normal,
                     color = if (selectedTab == 0) Color.White else colors.textSecondary
@@ -429,7 +430,7 @@ fun HistoryDetailScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "执行日志",
+                    text = stringResource(R.string.history_logs),
                     fontSize = 14.sp,
                     fontWeight = if (selectedTab == 1) FontWeight.Medium else FontWeight.Normal,
                     color = if (selectedTab == 1) Color.White else colors.textSecondary
@@ -451,7 +452,7 @@ fun HistoryDetailScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "暂无执行步骤",
+                            text = stringResource(R.string.history_empty_steps),
                             fontSize = 14.sp,
                             color = colors.textHint
                         )
@@ -477,7 +478,7 @@ fun HistoryDetailScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "暂无执行日志",
+                            text = stringResource(R.string.history_empty_logs),
                             fontSize = 14.sp,
                             color = colors.textHint
                         )
@@ -515,7 +516,7 @@ fun TimelineItem(
     step: ExecutionStep,
     isLast: Boolean
 ) {
-    val colors = BaoziTheme.colors
+    val colors = OrbitTheme.colors
     Row(modifier = Modifier.fillMaxWidth()) {
         // 时间线指示器
         Column(

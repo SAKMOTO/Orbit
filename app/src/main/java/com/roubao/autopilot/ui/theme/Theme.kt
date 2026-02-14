@@ -43,7 +43,7 @@ val Error = Color(0xFFF44336)
 val Warning = Color(0xFFFF9800)
 
 // 主题颜色数据类
-data class BaoziColors(
+data class OrbitColors(
     val primary: Color,
     val primaryDark: Color,
     val primaryLight: Color,
@@ -61,8 +61,9 @@ data class BaoziColors(
     val isDark: Boolean
 )
 
+
 // 深色主题颜色
-val DarkBaoziColors = BaoziColors(
+val DarkOrbitColors = OrbitColors(
     primary = Primary,
     primaryDark = PrimaryDark,
     primaryLight = PrimaryLight,
@@ -80,8 +81,9 @@ val DarkBaoziColors = BaoziColors(
     isDark = true
 )
 
+
 // 浅色主题颜色
-val LightBaoziColors = BaoziColors(
+val LightOrbitColors = OrbitColors(
     primary = Primary,
     primaryDark = PrimaryDark,
     primaryLight = PrimaryLight,
@@ -99,8 +101,10 @@ val LightBaoziColors = BaoziColors(
     isDark = false
 )
 
+
 // CompositionLocal 用于访问当前主题颜色
-val LocalBaoziColors = staticCompositionLocalOf { DarkBaoziColors }
+val LocalOrbitColors = staticCompositionLocalOf { DarkOrbitColors }
+
 
 // Material 3 深色配色方案
 private val DarkColorScheme = darkColorScheme(
@@ -150,7 +154,7 @@ enum class ThemeMode {
 }
 
 @Composable
-fun BaoziTheme(
+fun OrbitTheme(
     themeMode: ThemeMode = ThemeMode.DARK,
     content: @Composable () -> Unit
 ) {
@@ -159,11 +163,11 @@ fun BaoziTheme(
         ThemeMode.DARK -> true
         ThemeMode.SYSTEM -> isSystemInDarkTheme()
     }
-
+ 
     val colorScheme = if (isDarkTheme) DarkColorScheme else LightColorScheme
-    val baoziColors = if (isDarkTheme) DarkBaoziColors else LightBaoziColors
-
-    CompositionLocalProvider(LocalBaoziColors provides baoziColors) {
+    val orbitColors = if (isDarkTheme) DarkOrbitColors else LightOrbitColors
+ 
+    CompositionLocalProvider(LocalOrbitColors provides orbitColors) {
         MaterialTheme(
             colorScheme = colorScheme,
             typography = Typography(),
@@ -172,9 +176,11 @@ fun BaoziTheme(
     }
 }
 
+
 // 便捷访问当前主题颜色
-object BaoziTheme {
-    val colors: BaoziColors
+object OrbitTheme {
+    val colors: OrbitColors
         @Composable
-        get() = LocalBaoziColors.current
+        get() = LocalOrbitColors.current
 }
+

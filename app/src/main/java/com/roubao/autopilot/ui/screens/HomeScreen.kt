@@ -29,11 +29,14 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.roubao.autopilot.R
 import com.roubao.autopilot.agent.AgentState
-import com.roubao.autopilot.ui.theme.BaoziTheme
+
+import com.roubao.autopilot.ui.theme.OrbitTheme
 import com.roubao.autopilot.ui.theme.Primary
 import com.roubao.autopilot.ui.theme.Secondary
 
@@ -46,14 +49,18 @@ data class PresetCommand(
     val command: String
 )
 
-val presetCommands = listOf(
-    PresetCommand("🍔", "点汉堡", "帮我点个附近好吃的汉堡"),
-    PresetCommand("📕", "发小红书", "帮我发一条小红书，内容是今日份好心情"),
-    PresetCommand("📺", "刷B站", "打开B站搜索肉包，找到第一个视频点个赞"),
-    PresetCommand("✈️", "旅游攻略", "用小美帮我查一下三亚旅游攻略"),
-    PresetCommand("🎵", "听音乐", "打开网易云音乐播放每日推荐"),
-    PresetCommand("🛒", "点外卖", "帮我在美团点一份猪脚饭")
-)
+@Composable
+fun getPresetCommands(): List<PresetCommand> {
+    return listOf(
+        PresetCommand("🍔", stringResource(R.string.preset_burger), stringResource(R.string.preset_burger_cmd)),
+        PresetCommand("📕", stringResource(R.string.preset_xhs), stringResource(R.string.preset_xhs_cmd)),
+        PresetCommand("📺", stringResource(R.string.preset_bilibili), stringResource(R.string.preset_bilibili_cmd)),
+
+        PresetCommand("✈️", stringResource(R.string.preset_travel), stringResource(R.string.preset_travel_cmd)),
+        PresetCommand("🎵", stringResource(R.string.preset_music), stringResource(R.string.preset_music_cmd)),
+        PresetCommand("🛒", stringResource(R.string.preset_food), stringResource(R.string.preset_food_cmd))
+    )
+}
 
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
@@ -68,7 +75,7 @@ fun HomeScreen(
     onShizukuRequired: () -> Unit = {},
     isExecuting: Boolean = false
 ) {
-    val colors = BaoziTheme.colors
+    val colors = OrbitTheme.colors
     var inputText by remember { mutableStateOf("") }
     // 使用 isExecuting 或 agentState?.isRunning 来判断是否运行中
     val isRunning = isExecuting || agentState?.isRunning == true
@@ -114,13 +121,14 @@ fun HomeScreen(
             ) {
                 Column {
                     Text(
-                        text = "肉包",
+                        text = stringResource(R.string.app_name),
+
                         fontSize = 28.sp,
                         fontWeight = FontWeight.Bold,
                         color = colors.primary
                     )
                     Text(
-                        text = if (shizukuAvailable) "准备就绪，告诉我你想做什么" else "请先连接 Shizuku",
+                        text = if (shizukuAvailable) stringResource(R.string.home_ready) else stringResource(R.string.home_connect_shizuku),
                         fontSize = 14.sp,
                         color = if (shizukuAvailable) colors.textSecondary else colors.error
                     )
@@ -136,7 +144,7 @@ fun HomeScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Refresh,
-                            contentDescription = "刷新 Shizuku 状态",
+                            contentDescription = stringResource(R.string.home_refresh_status),
                             tint = colors.primary
                         )
                     }
@@ -208,20 +216,20 @@ fun PresetCommandsView(
     onCommandClick: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val colors = BaoziTheme.colors
+    val colors = OrbitTheme.colors
     Column(
         modifier = modifier.padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.Center
     ) {
         Text(
-            text = "试试这些指令",
+            text = stringResource(R.string.home_try_these),
             fontSize = 16.sp,
             fontWeight = FontWeight.Medium,
             color = colors.textSecondary,
             modifier = Modifier.padding(bottom = 16.dp)
         )
 
-        presetCommands.chunked(2).forEach { rowCommands ->
+        val presetCommands = getPresetCommands()
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -250,7 +258,7 @@ fun PresetCommandCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val colors = BaoziTheme.colors
+    val colors = OrbitTheme.colors
     Card(
         modifier = modifier
             .clickable(onClick = onClick),
@@ -320,7 +328,7 @@ fun ExecutionLogView(
 
 @Composable
 fun ExecutingIndicator(currentStep: Int, currentModel: String = "") {
-    val colors = BaoziTheme.colors
+    val colors = OrbitTheme.colors
     val infiniteTransition = rememberInfiniteTransition(label = "executing")
     val animatedProgress by infiniteTransition.animateFloat(
         initialValue = 0f,
@@ -367,7 +375,7 @@ fun ExecutingIndicator(currentStep: Int, currentModel: String = "") {
                         )
                         Spacer(modifier = Modifier.width(12.dp))
                         Text(
-                            text = "正在执行 Step $currentStep",
+                            text = stringResource(R.string.home_executing, currentStep),
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Medium,
                             color = colors.primary
@@ -412,7 +420,7 @@ fun ExecutingIndicator(currentStep: Int, currentModel: String = "") {
 
 @Composable
 fun LogItem(log: String) {
-    val colors = BaoziTheme.colors
+    val colors = OrbitTheme.colors
     val logColor = when {
         log.contains("❌") -> colors.error
         log.contains("✅") -> colors.success
@@ -440,7 +448,7 @@ fun InputArea(
     enabled: Boolean,
     onInputClick: () -> Unit = {}
 ) {
-    val colors = BaoziTheme.colors
+    val colors = OrbitTheme.colors
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = colors.backgroundCard,
@@ -467,13 +475,13 @@ fun InputArea(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Close,
-                        contentDescription = "停止",
+                        contentDescription = stringResource(R.string.home_stop),
                         tint = Color.White,
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "停止执行",
+                        text = stringResource(R.string.status_stopped),
                         color = Color.White,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Medium
@@ -511,7 +519,8 @@ fun InputArea(
                                 Box {
                                     if (inputText.isEmpty()) {
                                         Text(
-                                            text = "告诉肉包你想做什么...",
+                                            text = stringResource(R.string.home_input_placeholder),
+
                                             color = colors.textHint,
                                             fontSize = 15.sp
                                         )
@@ -523,7 +532,7 @@ fun InputArea(
                     } else {
                         // Shizuku 未连接，显示提示文字
                         Text(
-                            text = "请先连接 Shizuku",
+                            text = stringResource(R.string.home_connect_shizuku),
                             color = colors.textHint,
                             fontSize = 15.sp
                         )
@@ -546,7 +555,7 @@ fun InputArea(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Send,
-                        contentDescription = "发送",
+                        contentDescription = stringResource(R.string.home_send),
                         tint = Color.White,
                         modifier = Modifier.size(24.dp)
                     )

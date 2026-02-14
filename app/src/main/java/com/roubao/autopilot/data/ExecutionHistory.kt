@@ -65,9 +65,13 @@ data class ExecutionRecord(
         return sdf.format(Date(startTime))
     }
 
-    val formattedDuration: String get() {
+    fun formattedDuration(context: android.content.Context): String {
         val seconds = duration / 1000
-        return if (seconds < 60) "${seconds}秒" else "${seconds / 60}分${seconds % 60}秒"
+        return if (seconds < 60) {
+            context.getString(R.string.history_seconds, seconds)
+        } else {
+            context.getString(R.string.history_minutes_seconds, seconds / 60, seconds % 60)
+        }
     }
 
     fun toJson(): JSONObject = JSONObject().apply {

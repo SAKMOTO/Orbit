@@ -20,54 +20,59 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.roubao.autopilot.ui.theme.BaoziTheme
+import com.roubao.autopilot.R
+
+import com.roubao.autopilot.ui.theme.OrbitTheme
 import com.roubao.autopilot.ui.theme.Primary
 import kotlinx.coroutines.launch
 
 data class OnboardingPage(
     val icon: ImageVector,
-    val title: String,
-    val description: String,
+    val titleRes: Int,
+    val descriptionRes: Int,
     val iconColor: Color = Primary
 )
+
 
 val onboardingPages = listOf(
     OnboardingPage(
         icon = Icons.Outlined.Star,
-        title = "欢迎使用肉包",
-        description = "肉包是一个智能自动化助手，\n可以帮你操作手机完成各种任务",
+        titleRes = R.string.onboarding_welcome,
+        descriptionRes = R.string.onboarding_welcome_desc,
         iconColor = Color(0xFF6366F1) // Indigo
     ),
     OnboardingPage(
         icon = Icons.Outlined.Settings,
-        title = "AI 驱动",
-        description = "基于先进的视觉语言模型，\n肉包能够理解屏幕内容并做出智能决策",
+        titleRes = R.string.onboarding_ai,
+        descriptionRes = R.string.onboarding_ai_desc,
         iconColor = Color(0xFF8B5CF6) // Violet
     ),
     OnboardingPage(
         icon = Icons.Outlined.Home,
-        title = "简单易用",
-        description = "只需用自然语言描述你想做的事，\n肉包会自动帮你完成",
+        titleRes = R.string.onboarding_easy,
+        descriptionRes = R.string.onboarding_easy_desc,
         iconColor = Color(0xFF06B6D4) // Cyan
     ),
     OnboardingPage(
         icon = Icons.Filled.Lock,
-        title = "安全可靠",
-        description = "遇到敏感页面（如支付、密码）会自动停止，\n保护你的账户安全",
+        titleRes = R.string.onboarding_safe,
+        descriptionRes = R.string.onboarding_safe_desc,
         iconColor = Color(0xFF10B981) // Emerald
     )
 )
+
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun OnboardingScreen(
     onComplete: () -> Unit
 ) {
-    val colors = BaoziTheme.colors
+    val colors = OrbitTheme.colors
     val pagerState = rememberPagerState(pageCount = { onboardingPages.size })
     val coroutineScope = rememberCoroutineScope()
 
@@ -134,11 +139,12 @@ fun OnboardingScreen(
                     modifier = Modifier.weight(1f)
                 ) {
                     Text(
-                        text = "跳过",
+                        text = stringResource(R.string.onboarding_skip),
                         color = colors.textSecondary,
                         fontSize = 16.sp
                     )
                 }
+
 
                 Spacer(modifier = Modifier.width(16.dp))
 
@@ -162,12 +168,16 @@ fun OnboardingScreen(
                     )
                 ) {
                     Text(
-                        text = if (pagerState.currentPage < onboardingPages.size - 1) "下一步" else "开始使用",
+                        text = if (pagerState.currentPage < onboardingPages.size - 1) 
+                            stringResource(R.string.onboarding_next) 
+                        else 
+                            stringResource(R.string.onboarding_start),
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Medium,
                         color = Color.White
                     )
                 }
+
             }
 
             Spacer(modifier = Modifier.height(32.dp))
@@ -180,7 +190,7 @@ fun OnboardingPageContent(
     page: OnboardingPage,
     modifier: Modifier = Modifier
 ) {
-    val colors = BaoziTheme.colors
+    val colors = OrbitTheme.colors
 
     Column(
         modifier = modifier.padding(horizontal = 32.dp),
@@ -216,7 +226,7 @@ fun OnboardingPageContent(
         ) {
             Icon(
                 imageVector = page.icon,
-                contentDescription = page.title,
+                contentDescription = stringResource(page.titleRes),
                 modifier = Modifier.size((72 * scale).dp),
                 tint = page.iconColor
             )
@@ -225,8 +235,9 @@ fun OnboardingPageContent(
         Spacer(modifier = Modifier.height(48.dp))
 
         // 标题
+        val title = stringResource(page.titleRes)
         Text(
-            text = page.title,
+            text = title,
             fontSize = 28.sp,
             fontWeight = FontWeight.Bold,
             color = colors.textPrimary,
@@ -237,11 +248,12 @@ fun OnboardingPageContent(
 
         // 描述
         Text(
-            text = page.description,
+            text = stringResource(page.descriptionRes),
             fontSize = 16.sp,
             color = colors.textSecondary,
             textAlign = TextAlign.Center,
             lineHeight = 26.sp
         )
+
     }
 }

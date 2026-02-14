@@ -157,8 +157,9 @@ class OverlayService : Service() {
     }
 
     private fun startForegroundNotification() {
-        val channelId = "baozi_overlay"
-        val channelName = "肉包状态"
+        val channelId = "orbit_overlay"
+        val channelName = getString(R.string.overlay_channel_name)
+
 
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -167,7 +168,8 @@ class OverlayService : Service() {
                     channelName,
                     NotificationManager.IMPORTANCE_LOW
                 ).apply {
-                    description = "显示肉包执行状态"
+                    description = getString(R.string.overlay_channel_desc)
+
                     setShowBadge(false)
                 }
                 val notificationManager = getSystemService(NotificationManager::class.java)
@@ -182,8 +184,9 @@ class OverlayService : Service() {
             )
 
             val notification = NotificationCompat.Builder(this, channelId)
-                .setContentTitle("肉包运行中")
-                .setContentText("正在执行自动化任务...")
+                .setContentTitle(getString(R.string.overlay_notification_title))
+                .setContentText(getString(R.string.overlay_notification_text))
+
                 .setSmallIcon(R.mipmap.ic_launcher)
                 .setContentIntent(pendingIntent)
                 .setOngoing(true)
@@ -196,9 +199,10 @@ class OverlayService : Service() {
             // 降级：使用最简单的通知确保 startForeground 被调用
             try {
                 val fallbackNotification = NotificationCompat.Builder(this, channelId)
-                    .setContentTitle("肉包")
+                    .setContentTitle("Orbit")
                     .setSmallIcon(R.mipmap.ic_launcher)
                     .build()
+
                 startForeground(1001, fallbackNotification)
             } catch (e2: Exception) {
                 println("[OverlayService] fallback startForeground also failed: ${e2.message}")
@@ -238,7 +242,8 @@ class OverlayService : Service() {
 
         // 状态文字
         textView = TextView(this).apply {
-            text = "肉包"
+            text = getString(R.string.app_name)
+
             textSize = 13f
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
@@ -260,7 +265,7 @@ class OverlayService : Service() {
 
         // 动作按钮（停止/继续/确认）
         actionButton = TextView(this).apply {
-            text = "⏹ 停止"
+            text = getString(R.string.overlay_stop)
             textSize = 13f
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
@@ -306,7 +311,7 @@ class OverlayService : Service() {
 
         // 取消按钮（确认模式用）
         cancelButton = TextView(this).apply {
-            text = "❌ 取消"
+            text = getString(R.string.overlay_cancel)
             textSize = 13f
             setTextColor(Color.parseColor("#FF6B6B"))  // 红色
             gravity = Gravity.CENTER
@@ -464,7 +469,7 @@ class OverlayService : Service() {
             // 确保悬浮窗可见
             overlayView?.visibility = View.VISIBLE
             textView?.text = "🖐 $message"
-            actionButton?.text = "✅ 继续"
+            actionButton?.text = getString(R.string.overlay_continue)
             actionButton?.setTextColor(Color.parseColor("#90EE90")) // 浅绿色
             // 隐藏取消按钮（人机协作只有继续按钮）
             divider2?.visibility = View.GONE
@@ -476,7 +481,7 @@ class OverlayService : Service() {
     private fun setNormalMode() {
         println("[OverlayService] setNormalMode")
         overlayView?.post {
-            actionButton?.text = "⏹ 停止"
+            actionButton?.text = getString(R.string.overlay_stop)
             actionButton?.setTextColor(Color.WHITE)
             // 隐藏取消按钮和第二分隔线
             divider2?.visibility = View.GONE
@@ -491,7 +496,7 @@ class OverlayService : Service() {
             // 确保悬浮窗可见
             overlayView?.visibility = View.VISIBLE
             textView?.text = "⚠️ $message"
-            actionButton?.text = "✅ 确认"
+            actionButton?.text = getString(R.string.overlay_confirm)
             actionButton?.setTextColor(Color.parseColor("#90EE90"))  // 浅绿色
             // 显示取消按钮和第二分隔线
             divider2?.visibility = View.VISIBLE

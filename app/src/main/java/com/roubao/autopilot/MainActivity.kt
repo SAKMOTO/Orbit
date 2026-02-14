@@ -36,22 +36,35 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.core.view.WindowCompat
 import com.roubao.autopilot.vlm.GUIOwlClient
 import com.roubao.autopilot.vlm.MAIUIClient
-import com.roubao.autopilot.vlm.VLMClient
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import rikka.shizuku.Shizuku
 import android.util.Log
+import android.content.Context
+import com.roubao.autopilot.utils.LocaleHelper
+import kotlinx.coroutines.*
+import androidx.compose.ui.res.stringResource
+import com.roubao.autopilot.vlm.VLMClient
+
+
 
 private const val TAG = "MainActivity"
 
-sealed class Screen(val route: String, val title: String, val icon: ImageVector, val selectedIcon: ImageVector) {
-    object Home : Screen("home", "肉包", Icons.Outlined.Home, Icons.Filled.Home)
-    object Capabilities : Screen("capabilities", "能力", Icons.Outlined.Star, Icons.Filled.Star)
-    object History : Screen("history", "记录", Icons.Outlined.List, Icons.Filled.List)
-    object Settings : Screen("settings", "设置", Icons.Outlined.Settings, Icons.Filled.Settings)
+sealed class Screen(val route: String, val titleRes: Int, val icon: ImageVector, val selectedIcon: ImageVector) {
+    object Home : Screen("home", R.string.tab_home, Icons.Outlined.Home, Icons.Filled.Home)
+    object Capabilities : Screen("capabilities", R.string.tab_capabilities, Icons.Outlined.Info, Icons.Filled.Info)
+    object History : Screen("history", R.string.tab_history, Icons.Outlined.List, Icons.Filled.List)
+    object Settings : Screen("settings", R.string.tab_settings, Icons.Outlined.Settings, Icons.Filled.Settings)
 }
 
+
 class MainActivity : ComponentActivity() {
+
+    override fun attachBaseContext(newBase: Context) {
+        val settingsManager = SettingsManager(newBase)
+        val language = settingsManager.settings.value.language
+        val context = LocaleHelper.onAttach(newBase, language)
+        super.attachBaseContext(context)
+    }
+
 
     private lateinit var deviceController: DeviceController
     private lateinit var settingsManager: SettingsManager
@@ -134,8 +147,8 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val settings by settingsManager.settings.collectAsState()
-            BaoziTheme(themeMode = settings.themeMode) {
-                val colors = BaoziTheme.colors
+            OrbitTheme(themeMode = settings.themeMode) {
+                val colors = OrbitTheme.colors
                 // 动态更新系统栏颜色
                 SideEffect {
                     val window = this@MainActivity.window
@@ -170,7 +183,7 @@ class MainActivity : ComponentActivity() {
         var hasShownShizukuHelp by remember { mutableStateOf(false) }
 
         val settings by settingsManager.settings.collectAsState()
-        val colors = BaoziTheme.colors
+        val colors = OrbitTheme.colors
         val agent = mobileAgent.value
         val agentState by agent?.state?.collectAsState() ?: remember { mutableStateOf(null) }
         val logs by agent?.logs?.collectAsState() ?: remember { mutableStateOf(emptyList<String>()) }
@@ -213,15 +226,17 @@ class MainActivity : ComponentActivity() {
                     ) {
                         listOf(Screen.Home, Screen.Capabilities, Screen.History, Screen.Settings).forEach { screen ->
                             val selected = currentScreen == screen
+                            val title = stringResource(screen.titleRes)
                             NavigationBarItem(
                                 icon = {
                                     Icon(
                                         imageVector = if (selected) screen.selectedIcon else screen.icon,
-                                        contentDescription = screen.title
+                                        contentDescription = title
                                     )
                                 },
-                                label = { Text(screen.title) },
+                                label = { Text(title) },
                                 selected = selected,
+
                                 onClick = { currentScreen = screen },
                                 colors = NavigationBarItemDefaults.colors(
                                     selectedIconColor = if (colors.isDark) colors.textPrimary else Color.White,
@@ -310,8 +325,12 @@ class MainActivity : ComponentActivity() {
                                     App.getInstance().updateCloudCrashReportEnabled(enabled)
                                 },
                                 onUpdateRootModeEnabled = { settingsManager.updateRootModeEnabled(it) },
-                                onUpdateSuCommandEnabled = { settingsManager.updateSuCommandEnabled(it) },
-                                onSelectProvider = { settingsManager.selectProvider(it) },
+                                onUpdateSuCommandEnabled = settingsManager::updateSuCommandEnabled,
+                                onUpdateLanguage = { language ->
+                                    settingsManager.updateLanguage(language)
+                                    this@MainActivity.recreate()
+                                },
+                                onSelectProvider = settingsManager::selectProvider,
                                 shizukuAvailable = isShizukuAvailable,
                                 shizukuPrivilegeLevel = if (isShizukuAvailable) {
                                     when (deviceController.getShizukuPrivilegeLevel()) {

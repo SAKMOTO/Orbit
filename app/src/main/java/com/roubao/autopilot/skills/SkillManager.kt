@@ -78,40 +78,40 @@ class SkillManager private constructor(
 
         // 构建 Skills 列表描述
         val skillsInfo = buildString {
-            append("可用技能列表：\n")
+            append(context.getString(R.string.skill_available_list) + "：\n")
             for (skill in registry.getAll()) {
                 val config = skill.config
                 // 只展示有已安装应用的 Skill
                 val installedApps = config.relatedApps.filter { registry.isAppInstalled(it.packageName) }
                 if (installedApps.isNotEmpty()) {
                     append("- ID: ${config.id}\n")
-                    append("  名称: ${config.name}\n")
-                    append("  描述: ${config.description}\n")
-                    append("  关键词: ${config.keywords.joinToString(", ")}\n")
-                    append("  可用应用: ${installedApps.joinToString(", ") { it.name }}\n\n")
+                    append("  ${context.getString(R.string.skill_name_label)}: ${config.name}\n")
+                    append("  ${context.getString(R.string.skill_desc_label)}: ${config.description}\n")
+                    append("  ${context.getString(R.string.skill_keyword_label)}: ${config.keywords.joinToString(", ")}\n")
+                    append("  ${context.getString(R.string.skill_apps_label)}: ${installedApps.joinToString(", ") { it.name }}\n\n")
                 }
             }
         }
 
-        val prompt = """你是一个意图识别助手。根据用户输入，判断最匹配的技能。
-
+        val prompt = """${context.getString(R.string.skill_intent_assistant)}
+ 
 $skillsInfo
-
+ 
 用户输入: "$query"
-
-请分析用户意图，返回 JSON 格式：
+ 
+${context.getString(R.string.skill_json_format)}
 {
   "skill_id": "匹配的技能ID，如果没有匹配返回 null",
   "confidence": 0.0-1.0 的置信度,
-  "reasoning": "简短的匹配理由"
+  "reasoning": "${context.getString(R.string.skill_json_reasoning)}"
 }
-
-注意：
-1. 只返回 JSON，不要有其他文字
-2. 如果用户意图明确匹配某个技能，即使措辞不同也要识别
-3. 如果确实没有匹配的技能，skill_id 返回 null
-4. 例如"点个汉堡"、"帮我点外卖"、"想吃炸鸡" 都应该匹配 order_food
-5. "附近好吃的"、"推荐美食" 应该匹配 find_food"""
+ 
+${context.getString(R.string.skill_json_note)}
+${context.getString(R.string.skill_json_note1)}
+${context.getString(R.string.skill_json_note2)}
+${context.getString(R.string.skill_json_note3)}
+${context.getString(R.string.skill_json_example1)}
+${context.getString(R.string.skill_json_example2)}"""
 
         return try {
             val result = client.predict(prompt)
@@ -212,46 +212,46 @@ $skillsInfo
         val match = matchAvailableAppWithLLM(query)
 
         if (match == null) {
-            return "未找到相关技能或可用应用，请使用通用 GUI 自动化完成任务。"
+            return context.getString(R.string.skill_no_match)
         }
 
         return buildString {
             val config = match.skill.config
             val app = match.app
 
-            append("根据用户意图，已匹配到技能：\n\n")
-            append("【${config.name}】(置信度: ${(match.score * 100).toInt()}%)\n")
-            append("描述: ${config.description}\n\n")
-
+            append(context.getString(R.string.skill_matched_intent) + "\n\n")
+            append("【${config.name}】(${context.getString(R.string.skill_confidence_label)}: ${(match.score * 100).toInt()}%)\n")
+            append("${context.getString(R.string.skill_desc_label)}: ${config.description}\n\n")
+ 
             // 显示提示词约束（如小红书100字限制）
             if (!config.promptHint.isNullOrBlank()) {
-                append("⚠️ 重要提示: ${config.promptHint}\n\n")
+                append("⚠️ ${context.getString(R.string.skill_important_hint)}: ${config.promptHint}\n\n")
             }
 
             val typeLabel = when (app.type) {
-                ExecutionType.DELEGATION -> "🚀委托(快速)"
-                ExecutionType.GUI_AUTOMATION -> "🤖GUI自动化"
+                ExecutionType.DELEGATION -> context.getString(R.string.skill_type_delegation)
+                ExecutionType.GUI_AUTOMATION -> context.getString(R.string.skill_type_automation)
             }
 
-            append("推荐应用: ${app.name} $typeLabel\n")
-
+            append("${context.getString(R.string.skill_apps_label)}: ${app.name} $typeLabel\n")
+ 
             if (app.type == ExecutionType.DELEGATION && app.deepLink != null) {
                 append("DeepLink: ${app.deepLink}\n")
             }
-
+ 
             if (!app.steps.isNullOrEmpty()) {
-                append("操作步骤: ${app.steps.joinToString(" → ")}\n")
+                append("${context.getString(R.string.history_steps)}: ${app.steps.joinToString(" → ")}\n")
             }
 
             app.description?.let {
                 append("说明: $it\n")
             }
 
-            append("\n建议：")
+            append("\n${context.getString(R.string.capabilities_responsibility)}：")
             if (app.type == ExecutionType.DELEGATION) {
-                append("使用 DeepLink 直接打开 ${app.name}，可快速完成任务。")
+                append(context.getString(R.string.skill_suggest_deeplink, app.name))
             } else {
-                append("通过 GUI 自动化操作 ${app.name} 完成任务。")
+                append(context.getString(R.string.skill_suggest_automation, app.name))
             }
         }
     }
@@ -293,8 +293,8 @@ $skillsInfo
 
         if (deepLink.isEmpty()) {
             return SkillResult.Failed(
-                error = "无法生成 DeepLink",
-                suggestion = "尝试使用 GUI 自动化方式"
+                error = context.getString(R.string.skill_error_no_deeplink),
+                suggestion = context.getString(R.string.skill_suggest_gui)
             )
         }
 
@@ -309,7 +309,7 @@ $skillsInfo
             SkillResult.Delegated(
                 app = app,
                 deepLink = deepLink,
-                message = "已打开 ${app.name}"
+                message = context.getString(R.string.skill_delegation_opened, app.name)
             )
         } catch (e: Exception) {
             // 如果指定包名失败，尝试不指定包名的方式
@@ -323,12 +323,12 @@ $skillsInfo
                 SkillResult.Delegated(
                     app = app,
                     deepLink = deepLink,
-                    message = "已打开 ${app.name}（通用方式）"
+                    message = context.getString(R.string.skill_delegation_opened_fallback, app.name)
                 )
             } catch (e2: Exception) {
                 SkillResult.Failed(
-                    error = "打开 ${app.name} 失败: ${e2.message}",
-                    suggestion = "请确认应用已安装并支持 DeepLink"
+                    error = context.getString(R.string.skill_error_open_app, app.name, e2.message ?: ""),
+                    suggestion = context.getString(R.string.skill_deeplink_fallback_suggestion)
                 )
             }
         }
@@ -353,7 +353,7 @@ $skillsInfo
 
         return SkillResult.NeedAutomation(
             plan = plan,
-            message = "需要通过 GUI 自动化操作 ${app.name}"
+            message = context.getString(R.string.skill_automation_needed, app.name)
         )
     }
 
@@ -385,11 +385,11 @@ $skillsInfo
         val matches = matchAllAvailableApps(query)
 
         if (matches.isEmpty()) {
-            return "未找到相关技能或可用应用，请使用通用 GUI 自动化完成任务。"
+            return context.getString(R.string.skill_no_match)
         }
 
         return buildString {
-            append("根据用户意图，匹配到以下可用方案：\n\n")
+            append(context.getString(R.string.skill_available_schemes) + "\n\n")
 
             // 按 Skill 分组
             val groupedBySkill = matches.groupBy { it.skill.config.id }
@@ -398,33 +398,33 @@ $skillsInfo
                 val firstMatch = skillMatches.first()
                 val config = firstMatch.skill.config
 
-                append("【${config.name}】(置信度: ${(firstMatch.score * 100).toInt()}%)\n")
+                append("【${config.name}】(${context.getString(R.string.skill_confidence_label)}: ${(firstMatch.score * 100).toInt()}%)\n")
 
                 for ((index, match) in skillMatches.withIndex()) {
                     val app = match.app
                     val typeLabel = when (app.type) {
-                        ExecutionType.DELEGATION -> "🚀委托(快速)"
-                        ExecutionType.GUI_AUTOMATION -> "🤖GUI自动化"
+                        ExecutionType.DELEGATION -> context.getString(R.string.skill_type_delegation)
+                        ExecutionType.GUI_AUTOMATION -> context.getString(R.string.skill_type_automation)
                     }
-
-                    append("  ${index + 1}. ${app.name} $typeLabel (优先级: ${app.priority})\n")
+ 
+                    append("  ${index + 1}. ${app.name} $typeLabel (${context.getString(R.string.skill_priority_label)}: ${app.priority})\n")
 
                     if (app.type == ExecutionType.DELEGATION && app.deepLink != null) {
                         append("     DeepLink: ${app.deepLink}\n")
                     }
 
                     if (!app.steps.isNullOrEmpty()) {
-                        append("     步骤: ${app.steps.joinToString(" → ")}\n")
+                        append("     ${context.getString(R.string.history_steps)}: ${app.steps.joinToString(" → ")}\n")
                     }
 
                     app.description?.let {
-                        append("     说明: $it\n")
+                        append("     ${context.getString(R.string.skill_desc_label)}: $it\n")
                     }
                 }
                 append("\n")
             }
-
-            append("建议：优先使用委托模式(🚀)，速度更快。如果委托失败再使用 GUI 自动化(🤖)。")
+ 
+            append(context.getString(R.string.skill_suggest_general))
         }
     }
 

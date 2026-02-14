@@ -18,10 +18,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.roubao.autopilot.R
 import com.roubao.autopilot.tools.ToolManager
-import com.roubao.autopilot.ui.theme.BaoziTheme
+
+import com.roubao.autopilot.ui.theme.OrbitTheme
 
 /**
  * 工具信息（用于展示）
@@ -45,56 +48,59 @@ data class AgentInfo(
 /**
  * 预定义的 Agents 列表
  */
-val agentsList = listOf(
-    AgentInfo(
-        name = "Manager",
-        icon = "🎯",
-        role = "规划者",
-        description = "负责理解用户意图，制定高层次的执行计划，并跟踪任务进度。",
-        responsibilities = listOf(
-            "分析用户请求，理解真实意图",
-            "将复杂任务分解为可执行的子目标",
-            "制定执行计划和步骤顺序",
-            "根据执行反馈动态调整计划"
-        )
-    ),
-    AgentInfo(
-        name = "Executor",
-        icon = "⚡",
-        role = "执行者",
-        description = "负责分析当前屏幕状态，决定具体的操作动作。",
-        responsibilities = listOf(
-            "分析屏幕截图，理解界面元素",
-            "根据计划选择下一步操作",
-            "确定点击、滑动、输入等具体动作",
-            "输出精确的操作坐标和参数"
-        )
-    ),
-    AgentInfo(
-        name = "Reflector",
-        icon = "🔍",
-        role = "反思者",
-        description = "负责评估操作结果，判断动作是否成功执行。",
-        responsibilities = listOf(
-            "对比操作前后的屏幕变化",
-            "判断操作是否达到预期效果",
-            "识别异常情况（如弹窗、错误）",
-            "提供反馈帮助调整后续策略"
-        )
-    ),
-    AgentInfo(
-        name = "Notetaker",
-        icon = "📝",
-        role = "记录者",
-        description = "负责记录执行过程中的关键信息，供其他 Agent 参考。",
-        responsibilities = listOf(
-            "记录任务执行的重要节点",
-            "保存中间结果和状态信息",
-            "为后续步骤提供上下文参考",
-            "生成执行摘要和日志"
+@Composable
+fun getAgentsList(): List<AgentInfo> {
+    return listOf(
+        AgentInfo(
+            name = "Manager",
+            icon = "🎯",
+            role = stringResource(R.string.capabilities_role_manager),
+            description = stringResource(R.string.capabilities_desc_manager),
+            responsibilities = listOf(
+                stringResource(R.string.capabilities_role_manager_resp1),
+                stringResource(R.string.capabilities_role_manager_resp2),
+                stringResource(R.string.capabilities_role_manager_resp3),
+                stringResource(R.string.capabilities_role_manager_resp4)
+            )
+        ),
+        AgentInfo(
+            name = "Executor",
+            icon = "⚡",
+            role = stringResource(R.string.capabilities_role_executor),
+            description = stringResource(R.string.capabilities_desc_executor),
+            responsibilities = listOf(
+                stringResource(R.string.capabilities_role_executor_resp1),
+                stringResource(R.string.capabilities_role_executor_resp2),
+                stringResource(R.string.capabilities_role_executor_resp3),
+                stringResource(R.string.capabilities_role_executor_resp4)
+            )
+        ),
+        AgentInfo(
+            name = "Reflector",
+            icon = "🔍",
+            role = stringResource(R.string.capabilities_role_reflector),
+            description = stringResource(R.string.capabilities_desc_reflector),
+            responsibilities = listOf(
+                stringResource(R.string.capabilities_role_reflector_resp1),
+                stringResource(R.string.capabilities_role_reflector_resp2),
+                stringResource(R.string.capabilities_role_reflector_resp3),
+                stringResource(R.string.capabilities_role_reflector_resp4)
+            )
+        ),
+        AgentInfo(
+            name = "Notetaker",
+            icon = "📝",
+            role = stringResource(R.string.capabilities_role_notetaker),
+            description = stringResource(R.string.capabilities_desc_notetaker),
+            responsibilities = listOf(
+                stringResource(R.string.capabilities_role_notetaker_resp1),
+                stringResource(R.string.capabilities_role_notetaker_resp2),
+                stringResource(R.string.capabilities_role_notetaker_resp3),
+                stringResource(R.string.capabilities_role_notetaker_resp4)
+            )
         )
     )
-)
+}
 
 /**
  * 能力展示页面
@@ -103,7 +109,7 @@ val agentsList = listOf(
  */
 @Composable
 fun CapabilitiesScreen() {
-    val colors = BaoziTheme.colors
+    val colors = OrbitTheme.colors
 
     // 获取 Tools
     val tools = remember {
@@ -129,7 +135,11 @@ fun CapabilitiesScreen() {
 
     // Tab 状态
     var selectedTab by remember { mutableStateOf(0) }
-    val tabs = listOf("Agents (${agentsList.size})", "Tools (${allTools.size})")
+    val agentsList = getAgentsList()
+    val tabs = listOf(
+        stringResource(R.string.tab_capabilities_agents, agentsList.size),
+        stringResource(R.string.tab_capabilities_tools, allTools.size)
+    )
 
     Column(
         modifier = Modifier
@@ -144,13 +154,13 @@ fun CapabilitiesScreen() {
         ) {
             Column {
                 Text(
-                    text = "能力",
+                    text = stringResource(R.string.capabilities_title),
                     fontSize = 28.sp,
                     fontWeight = FontWeight.Bold,
                     color = colors.primary
                 )
                 Text(
-                    text = "${agentsList.size} 个 Agent，${allTools.size} 个工具",
+                    text = stringResource(R.string.capabilities_subtitle, agentsList.size, allTools.size),
                     fontSize = 14.sp,
                     color = colors.textSecondary
                 )
@@ -179,7 +189,7 @@ fun CapabilitiesScreen() {
 
         // 内容区域
         when (selectedTab) {
-            0 -> AgentsListView()
+            0 -> AgentsListView(agentsList = agentsList)
             1 -> ToolsListView(tools = allTools)
         }
     }
@@ -187,7 +197,7 @@ fun CapabilitiesScreen() {
 
 @Composable
 fun AgentsListView() {
-    val colors = BaoziTheme.colors
+    val colors = OrbitTheme.colors
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -203,14 +213,15 @@ fun AgentsListView() {
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "🧠 多 Agent 协作架构",
+                        text = stringResource(R.string.capabilities_arch_title),
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
                         color = colors.primary
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "肉包采用多 Agent 协作架构，每个 Agent 专注于特定职责，通过协作完成复杂的手机自动化任务。",
+                        text = stringResource(R.string.capabilities_architecture_desc),
+
                         fontSize = 13.sp,
                         color = colors.textSecondary
                     )
@@ -234,7 +245,7 @@ fun AgentsListView() {
 
 @Composable
 fun AgentCard(agent: AgentInfo) {
-    val colors = BaoziTheme.colors
+    val colors = OrbitTheme.colors
     var expanded by remember { mutableStateOf(false) }
 
     Card(
@@ -299,7 +310,7 @@ fun AgentCard(agent: AgentInfo) {
 
                 Icon(
                     imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                    contentDescription = if (expanded) "收起" else "展开",
+                    contentDescription = if (expanded) stringResource(R.string.capabilities_collapse) else stringResource(R.string.capabilities_expand),
                     tint = colors.textHint
                 )
             }
@@ -314,7 +325,7 @@ fun AgentCard(agent: AgentInfo) {
                     modifier = Modifier.padding(top = 16.dp)
                 ) {
                     Text(
-                        text = "职责",
+                        text = stringResource(R.string.capabilities_responsibility),
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium,
                         color = colors.textPrimary
@@ -350,7 +361,7 @@ fun AgentCard(agent: AgentInfo) {
 @Composable
 fun ToolsListView(tools: List<ToolInfo>) {
     if (tools.isEmpty()) {
-        EmptyState(message = "暂无工具")
+        EmptyState(message = stringResource(R.string.capabilities_no_tools))
     } else {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -366,7 +377,7 @@ fun ToolsListView(tools: List<ToolInfo>) {
 
 @Composable
 fun ToolCard(tool: ToolInfo) {
-    val colors = BaoziTheme.colors
+    val colors = OrbitTheme.colors
 
     // 根据工具名获取图标
     val toolIcon = when (tool.name) {
@@ -428,7 +439,7 @@ fun ToolCard(tool: ToolInfo) {
 
 @Composable
 fun EmptyState(message: String) {
-    val colors = BaoziTheme.colors
+    val colors = OrbitTheme.colors
 
     Box(
         modifier = Modifier

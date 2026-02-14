@@ -13,46 +13,47 @@ import kotlinx.coroutines.flow.StateFlow
  */
 data class ApiProvider(
     val id: String,
-    val name: String,
+    val nameResId: Int,
     val baseUrl: String,
     val defaultModel: String,
     val isGUIAgent: Boolean = false  // 是否为 GUI Agent 专用协议（非 OpenAI 兼容）
 ) {
+    fun getName(context: Context): String = context.getString(nameResId)
     companion object {
         val GUI_OWL = ApiProvider(
             id = "gui_owl",
-            name = "GUI-Owl (阿里云)",
+            nameResId = R.string.provider_aliyun_owl,
             baseUrl = "https://dashscope.aliyuncs.com/api/v2/apps/gui-owl/gui_agent_server",
             defaultModel = "pre-gui_owl_7b",
             isGUIAgent = true
         )
         val MAI_UI = ApiProvider(
             id = "mai_ui",
-            name = "MAI-UI (本地部署)",
+            nameResId = R.string.provider_mai_ui,
             baseUrl = "http://localhost:8000/v1",  // vLLM 默认地址
             defaultModel = "MAI-UI-2B"  // 支持 MAI-UI-2B 或 MAI-UI-8B
         )
         val ALIYUN = ApiProvider(
             id = "aliyun",
-            name = "阿里云 (Qwen-VL)",
+            nameResId = R.string.provider_aliyun_qwen,
             baseUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1",
             defaultModel = "qwen3-vl-plus"
         )
         val OPENAI = ApiProvider(
             id = "openai",
-            name = "OpenAI",
+            nameResId = R.string.provider_openai,
             baseUrl = "https://api.openai.com/v1",
             defaultModel = "gpt-4o"
         )
         val OPENROUTER = ApiProvider(
             id = "openrouter",
-            name = "OpenRouter",
+            nameResId = R.string.provider_openrouter,
             baseUrl = "https://openrouter.ai/api/v1",
             defaultModel = "anthropic/claude-3.5-sonnet"
         )
         val CUSTOM = ApiProvider(
             id = "custom",
-            name = "自定义",
+            nameResId = R.string.provider_custom,
             baseUrl = "",
             defaultModel = ""
         )
@@ -87,8 +88,10 @@ data class AppSettings(
     val maxSteps: Int = 25,
     val cloudCrashReportEnabled: Boolean = true,
     val rootModeEnabled: Boolean = false,
-    val suCommandEnabled: Boolean = false
+    val suCommandEnabled: Boolean = false,
+    val language: String = "auto"
 ) {
+
     // 便捷属性：获取当前服务商的配置
     val currentConfig: ProviderConfig
         get() = providerConfigs[currentProviderId] ?: ProviderConfig()
@@ -224,9 +227,11 @@ class SettingsManager(context: Context) {
             maxSteps = prefs.getInt("max_steps", 25),
             cloudCrashReportEnabled = prefs.getBoolean("cloud_crash_report_enabled", true),
             rootModeEnabled = prefs.getBoolean("root_mode_enabled", false),
-            suCommandEnabled = prefs.getBoolean("su_command_enabled", false)
+            suCommandEnabled = prefs.getBoolean("su_command_enabled", false),
+            language = prefs.getString("language", "auto") ?: "auto"
         )
     }
+
 
     /**
      * 加载指定服务商的配置
@@ -356,4 +361,10 @@ class SettingsManager(context: Context) {
         prefs.edit().putBoolean("su_command_enabled", enabled).apply()
         _settings.value = _settings.value.copy(suCommandEnabled = enabled)
     }
+
+    fun updateLanguage(language: String) {
+        prefs.edit().putString("language", language).apply()
+        _settings.value = _settings.value.copy(language = language)
+    }
 }
+
